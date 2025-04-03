@@ -1,2 +1,1 @@
-# Proactor
-Proactor Pattern
+# Proactor Pattern
