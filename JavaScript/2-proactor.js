@@ -3,15 +3,24 @@
 class Proactor {
   #tasks = [];
 
-  enqueue(fn) {
-    this.#tasks.push(fn);
+  enqueue(fn, callback) {
+    this.#tasks.push({ fn, callback });
   }
 
-  async start() {
+  start() {
     while (this.#tasks.length) {
       const tasks = this.#tasks.splice(0);
-      for (const fn of tasks) await fn();
+      this.#next(tasks, 0);
     }
+  }
+
+  #next(tasks, offset) {
+    if (offset >= tasks.length) return;
+    const handler = tasks[offset];
+    handler.fn((err, data) => {
+      handler.callback(err, data);
+      this.#next(tasks, offset + 1);
+    });
   }
 }
 
@@ -19,16 +28,29 @@ class Proactor {
 
 const eventLoop = new Proactor();
 
-const fakeAsyncRead = (name) => async () => {
+const fakeAsyncRead = (name, callback) => {
   const delay = Math.random() * 1000;
-  await new Promise((resolve) => {
-    setTimeout(resolve, delay);
-  });
-  console.log(`[Proactor] ${name} done after ${delay}ms`);
+  const fn = (done) => {
+    setTimeout(() => {
+      done(null, 'FILE DATA');
+    }, delay);
+  };
+  eventLoop.enqueue(fn, callback);
 };
 
-eventLoop.enqueue(fakeAsyncRead('File A'));
-eventLoop.enqueue(fakeAsyncRead('File B'));
-eventLoop.enqueue(fakeAsyncRead('File C'));
+fakeAsyncRead('File A', (err, data) => {
+  if (err) console.error(`[Proactor] File A: failed "${err.message}"`);
+  else console.log(`[Proactor] File A: done "${data}"`);
+});
+
+fakeAsyncRead('File B', (err, data) => {
+  if (err) console.error(`[Proactor] File B: failed "${err.message}"`);
+  else console.log(`[Proactor] File B: done "${data}"`);
+});
+
+fakeAsyncRead('File C', (err, data) => {
+  if (err) console.error(`[Proactor] File C: failed "${err.message}"`);
+  else console.log(`[Proactor] File C: done "${data}"`);
+});
 
 eventLoop.start();
